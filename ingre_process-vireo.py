@@ -21,7 +21,7 @@ def loadNpy(root_path, fileName):
     file = np.load(root_path + fileName)
     return file
 
-aa = loadMat(opt.data_path, 'size_class.mat')
+#aa = loadMat(opt.data_path, 'size_class.mat')
 
 def parse_ingre_presence(raw_ingre_info):
     # read ingredient data
@@ -55,7 +55,9 @@ def build_feature_vectors(root_path,train_data_path,ingredient_all_head, ingredi
     with io.open(train_data_path, encoding='utf-8') as file:
         lines = file.read().split('\n')[:-1]
 
-    ingredient_train_feature = np.zeros((len(ingredient_all_head), 353))
+    num_img = len(lines)
+    ingredient_train_feature = np.zeros((num_img, 353))
+    #ingredient_train_feature = np.zeros((len(ingredient_all_head), 353))
 
     i = 0
     for line in lines:
@@ -407,7 +409,7 @@ indexVector_train, indexVector_val, indexVector_test = create_LSTM_input(root_pa
 #-----------------------------------------------------------------------------------------------------------------
 #match glove vectors for our 309 ingredient words
 
-glove_path = root_path + 'glove.6B.300d.txt'
+glove_path = root_path + 'glove.6B/'+'glove.6B.300d.txt'
 
 #get embeddings of 309 ingredient words
 wordVector_word = create_glove_matrix(root_path, glove_path, wordList)

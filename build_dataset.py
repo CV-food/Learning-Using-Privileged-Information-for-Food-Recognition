@@ -14,7 +14,7 @@ class dataset_stage1(torch.utils.data.Dataset):
     def __init__(self, dataset_indicator, image_path = None, data_path = None, transform=None, loader=default_loader):
 
         # load image paths
-        if dataset_indicator is 'vireo':
+        if dataset_indicator == 'vireo':
             img_path_file = data_path + 'TR.txt'
         else:
             img_path_file = data_path + 'train_images.txt'
@@ -31,7 +31,7 @@ class dataset_stage1(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # get image matrix and transform to tensor
         path = self.path_to_images[index]
-        if self.dataset_indicator is 'vireo':
+        if self.dataset_indicator == 'vireo':
             img = self.loader(self.image_path + path)
         else:
             img = self.loader(self.image_path + path + '.jpg')
@@ -47,7 +47,7 @@ class dataset_stage1(torch.utils.data.Dataset):
 class dataset_stage2(torch.utils.data.Dataset):
     def __init__(self, dataset_indicator, data_path = None):
         # load image paths / label file
-        if dataset_indicator is 'vireo':
+        if dataset_indicator == 'vireo':
             ingredients = matio.loadmat(data_path + 'ingredient_train_feature.mat')['ingredient_train_feature']
             indexVectors = matio.loadmat(data_path + 'indexVector_train.mat')['indexVector_train']
         else:
@@ -78,8 +78,8 @@ class dataset_stage3(torch.utils.data.Dataset):
     def __init__(self, dataset_indicator, image_path = None, data_path = None, transform=None, loader=default_loader, mode = None):
 
         # load image paths / label file
-        if mode is 'train':
-            if dataset_indicator is 'vireo':
+        if mode == 'train':
+            if dataset_indicator == 'vireo':
                 with io.open(data_path + 'TR.txt', encoding='utf-8') as file:
                     path_to_images = file.read().split('\n')[:-1]
                 labels = matio.loadmat(data_path + 'train_label.mat')['train_label'][0]
@@ -95,8 +95,8 @@ class dataset_stage3(torch.utils.data.Dataset):
                 ingredients = matio.loadmat(data_path + 'ingredient_all_feature.mat')['ingredient_all_feature']
                 indexVectors = matio.loadmat(data_path + 'indexVector.mat')['indexVector']
 
-        elif mode is 'test':
-            if dataset_indicator is 'vireo':
+        elif mode == 'test':
+            if dataset_indicator == 'vireo':
                 with io.open(data_path + 'TE.txt', encoding='utf-8') as file:
                     path_to_images = file.read().split('\n')[:-1]
                 labels = matio.loadmat(data_path + 'test_label.mat')['test_label'][0]
@@ -112,8 +112,8 @@ class dataset_stage3(torch.utils.data.Dataset):
                 ingredients = matio.loadmat(data_path + 'ingredient_all_feature.mat')['ingredient_all_feature']
                 indexVectors = matio.loadmat(data_path + 'indexVector.mat')['indexVector']
 
-        elif mode is 'val':
-            if dataset_indicator is 'vireo':
+        elif mode == 'val':
+            if dataset_indicator == 'vireo':
                 with io.open(data_path + 'VAL.txt', encoding='utf-8') as file:
                     path_to_images = file.read().split('\n')[:-1]
                 labels = matio.loadmat(data_path + 'val_label.mat')['validation_label'][0]
@@ -149,7 +149,7 @@ class dataset_stage3(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # get image matrix and transform to tensor
         path = self.path_to_images[index]
-        if self.dataset_indicator is 'vireo':
+        if self.dataset_indicator == 'vireo':
             img = self.loader(self.image_path + path)
         else:
             img = self.loader(self.image_path + path + '.jpg')
@@ -159,7 +159,7 @@ class dataset_stage3(torch.utils.data.Dataset):
 
         # get label
         label = self.labels[index]
-        if self.dataset_indicator is 'food101':
+        if self.dataset_indicator == 'food101':
             label += 1 #make labels 1-indexed to be consistent with vireo data settings
             # get ingredient vector
             ingredients = self.ingredients[label-1]

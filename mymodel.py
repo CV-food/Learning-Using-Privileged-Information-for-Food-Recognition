@@ -257,22 +257,22 @@ class MyModel_stage3(nn.Module):
 
 
 def select_img_network(img_net_type, image_size, latent_len):
-    if img_net_type is 'resnet50':
+    if img_net_type == 'resnet50':
         from resnet import resnet50
         img_encoder = resnet50(image_size, pretrained=True)
         from resnet import deresnet50
         img_decoder = deresnet50(image_size, latent_len)
-    elif img_net_type is 'vgg19bn':
+    elif img_net_type == 'vgg19bn':
         from vgg import vgg19_bn
         img_encoder = vgg19_bn(image_size, pretrained=True)
         from vgg import devgg
         img_decoder = devgg(image_size)
-    elif img_net_type is 'wrn':
+    elif img_net_type == 'wrn':
         from wrn import WideResNet
         img_encoder = WideResNet(image_size)
         from resnet import deresnet50
         img_decoder = deresnet50(image_size, latent_len)
-    elif img_net_type is 'wiser':
+    elif img_net_type == 'wiser':
         from wiser import wiser
         img_encoder = wiser()
         from resnet import deresnet50
@@ -292,7 +292,7 @@ def select_ingre_network(data_path, CUDA, ingre_net_type, latent_len, max_seq, n
         ingre_encoder = gru_encoder_t(CUDA, gloveVector, latent_len)
         ingre_decoder = gru_decoder_t(CUDA, gloveVector, latent_len, max_seq, num_word)
 
-    elif ingre_net_type is 'nn':
+    elif ingre_net_type == 'nn':
         from ingre_nets import nn_encoder_t, nn_decoder_t
         ingre_encoder = nn_encoder_t(latent_len, num_word)
         ingre_decoder = nn_decoder_t(latent_len, num_word)
