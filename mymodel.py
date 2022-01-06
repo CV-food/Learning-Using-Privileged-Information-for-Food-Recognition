@@ -57,7 +57,7 @@ class MyModel_stage1(nn.Module):
     def forward(self, x):  # x:image
 
         #  ipdb.set_trace()
-        if self.net_type is 'vgg19bn':
+        if self.net_type == 'vgg19bn':
             x_latent = self.encoder_v(x)
             x_recon = self.decoder_v(x_latent)
         else:
@@ -89,14 +89,14 @@ class MyModel_stage2(nn.Module):
 
     def forward(self, y):  #y:ingredients
         # compute ingredient vectors
-        if self.ingre_net_type is 'gru':
+        if self.ingre_net_type == 'gru':
             att_y_latent, encoder_t_embeds, multi_attention = self.encoder_t(y)
             # recon of word embeddings
             gru_predicts, decoder_t_embeds = self.decoder_t(att_y_latent)  # (seq, batch, words)
 
             return gru_predicts, encoder_t_embeds, decoder_t_embeds, multi_attention
 
-        elif self.ingre_net_type is 'nn':
+        elif self.ingre_net_type == 'nn':
             y_latent = self.encoder_t(y)
             y_recon = self.decoder_t(y_latent)
 
@@ -174,9 +174,9 @@ class MyModel_stage3(nn.Module):
         # network for image channel
         self.encoder_v = img_encoder
         self.decoder_v = img_decoder
-        if CUDA:
-            self.encoder_v = nn.DataParallel(self.encoder_v)
-            self.decoder_v = nn.DataParallel(self.decoder_v)
+        # if CUDA:
+        #     #self.encoder_v = nn.DataParallel(self.encoder_v)
+        #     #self.decoder_v = nn.DataParallel(self.decoder_v)
 
         # ingre channel network
         self.encoder_t = ingre_encoder
@@ -187,6 +187,9 @@ class MyModel_stage3(nn.Module):
         self.align_x2 = alignNet(blk_len)
         self.align_y1 = alignNet(blk_len)
         self.align_y2 = alignNet(blk_len)
+
+        self.fc1 = nn.Linear(latent_len,blk_len)
+        self.fc2 = nn.Linear(latent_len,blk_len)
 
         # classifier
         self.classifier = nn.Linear(blk_len, num_class)
@@ -202,7 +205,7 @@ class MyModel_stage3(nn.Module):
 
     def forward(self, x, y):  # x:image, y:ingredient
         #compute image channel outputs
-        if self.net_type[0] is 'vgg19bn':
+        if self.net_type[0] == 'vgg19bn':
             x_latent = self.encoder_v(x)
             x_recon = self.decoder_v(x_latent)
         else:
@@ -210,7 +213,7 @@ class MyModel_stage3(nn.Module):
             x_recon = self.decoder_v(x_latent, a)
 
         #compute ingredient channel outputs
-        if self.net_type[1] is 'gru':
+        if self.net_type[1] == 'gru':
             y_latent, encoder_t_embeds, multi_attention = self.encoder_t(y)
             # recon of word embeddings
             gru_predicts, decoder_t_embeds = self.decoder_t(y_latent)  # (seq, batch, words)
@@ -223,7 +226,7 @@ class MyModel_stage3(nn.Module):
 
         #get cross channel v->t mapping
         y_latent_recon = self.cross_x(x_latent)
-        if self.net_type[1] is 'gru':
+        if self.net_type[1] == 'gru':
             x2y_ingre_recon, _ = self.decoder_t(y_latent_recon)
             return [predicts_v, predicts_t], [[x_align1, y_align1], [x_align2, y_align2]],\
                    [x_recon, [gru_predicts, encoder_t_embeds, decoder_t_embeds, multi_attention]], [[y_latent_recon, y_latent], x2y_ingre_recon]
@@ -236,12 +239,19 @@ class MyModel_stage3(nn.Module):
     def perform_alignment(self, x_latent, y_latent):
         # compute features in the aligned latent space
         # image channel
-        x_align1 = self.align_x1(x_latent[:, :self.blk_len])
+        x_align1 = self.align_x1(self.relu(self.fc1(x_latent)))
+        # x_align1 = self.align_x1(x_latent[:, :self.blk_len])
         x_align2 = self.align_x2(x_align1)
 
         # ingre channel
-        y_align1 = self.align_y1(y_latent[:, :self.blk_len])
+        y_align1 = self.align_x1(self.relu(self.fc2(y_latent)))
+        # y_align1 = self.align_y1(y_latent[:, :self.blk_len])
         y_align2 = self.align_y2(y_align1)
+
+        # print(x_align1.size())
+        # print(y_align1.size())
+        # print(x_align2.size())
+        # print(y_align2.size())
 
         # get predicts
         predicts_v = self.classifier(x_align2)
@@ -257,22 +267,22 @@ class MyModel_stage3(nn.Module):
 
 
 def select_img_network(img_net_type, image_size, latent_len):
-    if img_net_type is 'resnet50':
+    if img_net_type == 'resnet50':
         from resnet import resnet50
         img_encoder = resnet50(image_size, pretrained=True)
         from resnet import deresnet50
         img_decoder = deresnet50(image_size, latent_len)
-    elif img_net_type is 'vgg19bn':
+    elif img_net_type == 'vgg19bn':
         from vgg import vgg19_bn
         img_encoder = vgg19_bn(image_size, pretrained=True)
         from vgg import devgg
         img_decoder = devgg(image_size)
-    elif img_net_type is 'wrn':
+    elif img_net_type == 'wrn':
         from wrn import WideResNet
         img_encoder = WideResNet(image_size)
         from resnet import deresnet50
         img_decoder = deresnet50(image_size, latent_len)
-    elif img_net_type is 'wiser':
+    elif img_net_type == 'wiser':
         from wiser import wiser
         img_encoder = wiser()
         from resnet import deresnet50
@@ -284,7 +294,7 @@ def select_img_network(img_net_type, image_size, latent_len):
 
 
 def select_ingre_network(data_path, CUDA, ingre_net_type, latent_len, max_seq, num_word):
-    if ingre_net_type is 'gru':
+    if ingre_net_type == 'gru':
         # load glove vectors
         gloveVector = matio.loadmat(data_path + 'wordVector.mat')['wordVector']
 
@@ -292,7 +302,7 @@ def select_ingre_network(data_path, CUDA, ingre_net_type, latent_len, max_seq, n
         ingre_encoder = gru_encoder_t(CUDA, gloveVector, latent_len)
         ingre_decoder = gru_decoder_t(CUDA, gloveVector, latent_len, max_seq, num_word)
 
-    elif ingre_net_type is 'nn':
+    elif ingre_net_type == 'nn':
         from ingre_nets import nn_encoder_t, nn_decoder_t
         ingre_encoder = nn_encoder_t(latent_len, num_word)
         ingre_decoder = nn_decoder_t(latent_len, num_word)
@@ -329,13 +339,13 @@ def build_mymodel(mode, data_path, CUDA, image_size, latent_len, blk_len, num_cl
     # build model
     if train_stage == 1:
         img_encoder, img_decoder = select_img_network(net_type[0], image_size, latent_len)
-        if (net_type[0] is 'wiser') or (net_type[0] is 'wrn'):
+        if (net_type[0] == 'wiser') or (net_type[0] is 'wrn'):
             import ipdb; ipdb.set_trace()
             img_encoder = get_updateModel(img_encoder, pretrained_img_net_path)
         model = MyModel_stage1(img_encoder, img_decoder, net_type[0])
         if CUDA:
             model = model.cuda()
-            model = nn.DataParallel(model)
+            #model = nn.DataParallel(model)
 
         # optimizer
         optimizer = optim.Adam(model.parameters(), weight_decay=opt_w_decay_rate, lr=learning_rates[0])
@@ -357,7 +367,7 @@ def build_mymodel(mode, data_path, CUDA, image_size, latent_len, blk_len, num_cl
         if CUDA:
             model = model.cuda()
 
-        if mode is 'train':
+        if mode == 'train':
             # load pretrained models for image and ingre channels
             model = load_stage_models(model, stage_model_paths, CUDA)
             # optimizer

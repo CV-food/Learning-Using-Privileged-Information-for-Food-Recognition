@@ -5,7 +5,7 @@ def opt_ingre_process_vireo():
 
     parser = argparse.ArgumentParser()
 
-    root_path = '/mnt/FoodRecog/work_lupi/vireo/'
+    root_path = '../VireoFood172/'
 
     parser.add_argument('--data_path', type=str, default= root_path + 'SplitAndIngreLabel/',
                     help='path to data files')
@@ -24,12 +24,12 @@ def opt_ingre_process_food101():
 
     parser = argparse.ArgumentParser()
 
-    root_path = '/mnt/FoodRecog/work_lupi/food101/' #'path to root folder'
+    root_path = '../VireoFood172/' #'path to root folder'
 
     parser.add_argument('--data_path', type=str, default= root_path + 'data/',
                     help='path to data files')
 
-    parser.add_argument('--glove_root_path', type=str, default= root_path + '/vireo/SplitAndIngreLabel/',
+    parser.add_argument('--glove_root_path', type=str, default= root_path + 'SplitAndIngreLabel/',
                     help='path to glove files')
 
     args = parser.parse_args()
@@ -47,11 +47,11 @@ def opt_algorithm():
     parser = argparse.ArgumentParser()
 
     #dataset choose
-    dataset = 'food101' #selection from 'vireo' and 'food101'
+    dataset = 'vireo' #selection from 'vireo' and 'food101'
 
     if dataset is 'vireo':
-        root_path = '/mnt/FoodRecog/work_lupi/vireo/'
-        img_path = '/mnt/FoodRecog/vireo172/ready_chinese_food'
+        root_path = '../VireoFood172/'
+        img_path = '../VireoFood172/ready_chinese_food'
         data_path =  root_path + 'SplitAndIngreLabel/'
         food_class_name_path = data_path + 'FoodList.txt'
         dataset_num_class = 172
@@ -60,17 +60,17 @@ def opt_algorithm():
         dataset_max_seq_val = 10
         dataset_num_ingre = 353
         dataset_avg_ingre = 3
-    else:
-        root_path = '/mnt/FoodRecog/work_lupi/food101/'
-        img_path = '/mnt/FoodRecog/food101/food-101/images/'
-        data_path =  root_path + 'data/'
-        food_class_name_path = data_path + 'classes.txt'
-        dataset_num_class = 101
-        dataset_max_seq = 25
-        dataset_max_seq_test = None
-        dataset_max_seq_val = None
-        dataset_num_ingre = 446
-        dataset_avg_ingre = 9
+    # else:
+    #     root_path = '/mnt/FoodRecog/work_lupi/food101/'
+    #     img_path = '/mnt/FoodRecog/food101/food-101/images/'
+    #     data_path =  root_path + 'data/'
+    #     food_class_name_path = data_path + 'classes.txt'
+    #     dataset_num_class = 101
+    #     dataset_max_seq = 25
+    #     dataset_max_seq_test = None
+    #     dataset_max_seq_val = None
+    #     dataset_num_ingre = 446
+    #     dataset_avg_ingre = 9
 
     #environments
     parser.add_argument('--dataset', type=str, default= dataset,
@@ -140,5 +140,6 @@ def opt_algorithm():
 
     args = parser.parse_args()
 
-
+    args.result_path = args.result_path + 'stage'+str(args.stage+3)+'/'
+    
     return args

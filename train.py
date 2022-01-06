@@ -59,16 +59,21 @@ ingre_net_type = opt.ingre_net
 
 
 #algorithm hyperparameter - changed configuration to this instead of argparse for easier interaction
-CUDA = 1  # 1 for True; 0 for False
+CUDA = 0  # 1 for True; 0 for False
+if torch.cuda.is_available():
+    CUDA = 1
+    torch.cuda.set_device(2)
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
 SEED = 1
-BATCH_SIZE = 64
-LOG_INTERVAL = 1
+BATCH_SIZE = 32
+LOG_INTERVAL = 10
 learning_rate = 1e-3
 learning_rate_finetune_v = 1e-6
 learning_rate_finetune_t = 1e-6
 decay_rate = 0.1
 
-if img_net_type is 'vgg19bn':
+if img_net_type == 'vgg19bn':
     latent_len = 4096
 else:
     latent_len = 2048
@@ -78,24 +83,33 @@ weight_stage2_lstm_loss = 1e2
 weight_stage2_emb_loss = 1e2
 weight_stage2_att_loss = 1e4
 
+# weight_stage3_cls_loss_v = 2e1
+# weight_stage3_cls_loss_t = 2e1
+# weight_stage3_align_loss_kl = 5e5
+# weight_stage3_align_loss_l2 = 1e2
+# weight_stage3_recon_loss_v = 1e1
+# weight_stage3_v2t_latent = 5e2
+# weight_stage3_v2t_ingre_pred = 5e3
+
 weight_stage3_cls_loss_v = 2e1
 weight_stage3_cls_loss_t = 5e0
-weight_stage3_align_loss_kl = 1e4
+weight_stage3_align_loss_kl = 1e2  #made some change for sinkhorn
 weight_stage3_align_loss_l2 = 1e1
 weight_stage3_recon_loss_v = 1e0
 weight_stage3_v2t_latent = 5e0
-weight_stage3_v2t_ingre_pred = 1e1
+weight_stage3_v2t_ingre_pred = 1e2
+
 
 opt_w_decay_rate = 1e-3
 
-lr_decay = 4
+lr_decay = 5
 EPOCHS = lr_decay * 3 + 1
 
 
 torch.manual_seed(SEED)
 if CUDA:
     torch.cuda.manual_seed(SEED)
-kwargs = {'num_workers': 2, 'pin_memory': True} if CUDA else {}
+kwargs = {'num_workers': 2, 'pin_memory': False} if CUDA else {}
 
 
 #--Create dataset and dataloader----------------------------------------------------------------------------------
@@ -160,8 +174,8 @@ def train_epoch(epoch, decay, train_stage):
 
     for batch_idx, (data) in enumerate(train_loader):
 
-        if batch_idx == 2:
-            break
+        # if batch_idx == 2:
+        #     break
 
         start_time = time.time()
 
@@ -193,7 +207,7 @@ def train_epoch(epoch, decay, train_stage):
             final_loss = RE_V
 
         elif train_stage == 2:
-            if ingre_net_type is 'gru':
+            if ingre_net_type == 'gru':
                 #perform prediction
                 if batch_idx == 6:
                     a=1
@@ -205,7 +219,7 @@ def train_epoch(epoch, decay, train_stage):
                                  [weight_stage2_lstm_loss, weight_stage2_emb_loss, weight_stage2_att_loss])
                 final_loss = lstm_loss + embed_match_loss + ATT
 
-            elif ingre_net_type is 'nn':
+            elif ingre_net_type == 'nn':
                 # perform prediction
                 y_recon = model(ingredients)
                 # compute loss
@@ -217,7 +231,7 @@ def train_epoch(epoch, decay, train_stage):
 
         elif train_stage == 3:
             #perform prediction
-            if ingre_net_type is 'gru':
+            if ingre_net_type == 'gru':
                 predicts, align_vectors, recon_vectors, cross_vectors = model(imgs, indexVectors)
             else:
                 predicts, align_vectors, recon_vectors, cross_vectors = model(imgs, ingredients)
@@ -229,10 +243,10 @@ def train_epoch(epoch, decay, train_stage):
                               weight_stage3_recon_loss_v, weight_stage3_v2t_latent, weight_stage3_v2t_ingre_pred])
 
             final_loss = CE_V + CE_T + AE_kl + AE_l2 + RE_V + RE_v2t_latent + RE_v2t_ingre_pred
-            if ingre_net_type is 'gru':
+            if ingre_net_type == 'gru':
                 [lstm_loss, embed_match_loss, ATT] = RE_T
                 final_loss += lstm_loss + embed_match_loss + ATT
-            elif ingre_net_type is 'nn':
+            elif ingre_net_type == 'nn':
                 final_loss += RE_T
             else:
                 assert 1 < 0, 'Please indicate the correct ingre_net_type!'
@@ -279,23 +293,24 @@ def train_epoch(epoch, decay, train_stage):
                     round((time.time() - start_time), 4),
                     round((time.time() - total_time), 4)))
             elif train_stage == 2:
-                if ingre_net_type is 'gru':
+                if ingre_net_type == 'gru':
                     print('Train Epoch: {} [{}/{} ({:.0f}%)] | lstm_loss: {:.4f} | embed_match_loss: {:.4f} | ATT: {:.4f} | Time:{} | Total_Time:{}'.format(
                             epoch, (batch_idx + 1) * len(ingredients), len(train_loader.dataset), 100. * (batch_idx + 1) / len(train_loader),
                             lstm_loss, embed_match_loss, ATT,
                             round((time.time() - start_time), 4),
                             round((time.time() - total_time), 4)))
-                elif ingre_net_type is 'nn':
+                elif ingre_net_type == 'nn':
                     print('Train Epoch: {} [{}/{} ({:.0f}%)] | RE_T: {:.4f} | Time:{} | Total_Time:{}'.format(
                         epoch, (batch_idx + 1) * len(ingredients), len(train_loader.dataset), 100. * (batch_idx + 1) / len(train_loader),
                         RE_T,
                         round((time.time() - start_time), 4),
                         round((time.time() - total_time), 4)))
             elif train_stage == 3:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)] | CE_V: {:.4f} | CE_T: {:.4f} | AE_kl: {:.4f} | AE_l2: {:.4f} | RE_l: {:.4f} | RE_p: {:.4f} | Acc_v: {:.4f} | Acc_t: {:.4f} | Acc_ingre: {:.4f} | Time:{} | Total_Time:{}'.format(
+                print('Train Epoch: {} [{}/{} ({:.0f}%)] | CE_V: {:.4f} | CE_T: {:.4f} | AE_kl: {:.4f} | AE_l2: {:.4f} | RE_l: {:.4f} | RE_p: {:.4f} | RE_V: {:.4f} | RE_T: {:.4f} | Acc_v: {:.4f} | Acc_t: {:.4f} | Acc_ingre: {:.4f} | Time:{} | Total_Time:{}'.format(
                     epoch, (batch_idx + 1) * len(ingredients), len(train_loader.dataset), 100. * (batch_idx + 1) / len(train_loader),
                     CE_V, CE_T, AE_kl, AE_l2, RE_v2t_latent, RE_v2t_ingre_pred,
                     top1_accuracy_cur_V, top1_accuracy_cur_T, ingre_precision,
+                    RE_V, sum(RE_T),
                     round((time.time() - start_time), 4),
                     round((time.time() - total_time), 4)))
 
@@ -312,7 +327,7 @@ def train_epoch(epoch, decay, train_stage):
                 print_state(state)
 
             elif train_stage == 2:
-                if ingre_net_type is 'gru':
+                if ingre_net_type == 'gru':
                     state = 'Train Epoch: {} [{}/{} ({:.0f}%)] | lstm_loss: {:.4f} | embed_match_loss: {:.4f} | ATT: {:.4f} | Time:{} | Total_Time:{}'.format(
                             epoch, (batch_idx + 1) * len(ingredients), len(train_loader.dataset), 100. * (batch_idx + 1) / len(train_loader),
                             lstm_loss.data, embed_match_loss.data, ATT.data,
@@ -320,7 +335,7 @@ def train_epoch(epoch, decay, train_stage):
                             round((time.time() - total_time), 4))
                     print_state(state)
 
-                elif ingre_net_type is 'nn':
+                elif ingre_net_type == 'nn':
                     state = 'Train Epoch: {} [{}/{} ({:.0f}%)] | RE_T: {:.4f} | Time:{} | Total_Time:{}'.format(
                         epoch, (batch_idx + 1) * len(ingredients), len(train_loader.dataset), 100. * (batch_idx + 1) / len(train_loader),
                         RE_T,
@@ -328,9 +343,10 @@ def train_epoch(epoch, decay, train_stage):
                         round((time.time() - total_time), 4))
                     print_state(state)
             elif train_stage == 3:
-                state = 'Train Epoch: {} [{}/{} ({:.0f}%)] | CE_V: {:.4f} | CE_T: {:.4f} | AE_kl: {:.4f} | AE_l2: {:.4f} | RE_l: {:.4f} | RE_p: {:.4f} | Acc_v: {:.4f} | Acc_t: {:.4f} | Acc_ingre: {:.4f} | Time:{} | Total_Time:{}'.format(
+                state = 'Train Epoch: {} [{}/{} ({:.0f}%)] | CE_V: {:.4f} | CE_T: {:.4f} | AE_kl: {:.4f} | AE_l2: {:.4f} | RE_l: {:.4f} | RE_p: {:.4f} | RE_V: {:.4f} | RE_T: {:.4f} | Acc_v: {:.4f} | Acc_t: {:.4f} | Acc_ingre: {:.4f} | Time:{} | Total_Time:{}'.format(
                     epoch, (batch_idx + 1) * len(ingredients), len(train_loader.dataset), 100. * (batch_idx + 1) / len(train_loader),
                     CE_V, CE_T, AE_kl, AE_l2, RE_v2t_latent, RE_v2t_ingre_pred,
+                    RE_V, sum(RE_T),
                     top1_accuracy_cur_V, top1_accuracy_cur_T, ingre_precision,
                     round((time.time() - start_time), 4) * LOG_INTERVAL,
                     round((time.time() - total_time), 4))

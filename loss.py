@@ -5,6 +5,7 @@ import torch.utils.data
 from torch import nn
 from torch.nn import functional as F
 
+from layers import SinkhornDistance
 
 
 criterion_cls = nn.CrossEntropyLoss()
@@ -12,6 +13,38 @@ criterion_kl = nn.KLDivLoss()
 criterion_recon = nn.MSELoss()
 criterion_lstm = nn.BCELoss()
 softmax = nn.Softmax(dim=1)
+
+sinkhorn = SinkhornDistance(eps=0.1, max_iter=100, reduction=None)
+# def JSLoss(x,y):
+#     m = (x+y)/2
+#     loss = criterion_kl(F.log_softmax(x,dim=1),F.log_softmax(m,dim=1)) + criterion_kl(F.log_softmax(y,dim=1),F.log_softmax(m,dim=1))
+#     return loss 
+class CosineEnbeddingLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        
+    def forward(self, x, y):
+        batch_size = x.shape[0]
+        total_loss = 0
+        for i in range(0,batch_size):
+            l_i = 1 - torch.cosine_similarity(x[i], y[i], dim=0).item()
+            print(l_i)
+            total_loss += l_i
+
+        return total_loss/batch_size
+
+class JSloss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.criterion_kl = nn.KLDivLoss()
+        
+    def forward(self, x, y):
+        m = (x+y)/2
+        loss = self.criterion_kl(F.log_softmax(x,dim=1),F.log_softmax(m,dim=1)) + self.criterion_kl(F.log_softmax(y,dim=1),F.log_softmax(m,dim=1))
+        return loss
+
+criterion_cos = CosineEnbeddingLoss()
+criterion_JS = JSloss()
 
 
 def getLSTMloss(gru_predicts, indexVectors, encoder_t_embeds, decoder_t_embeds, CUDA):
@@ -69,7 +102,7 @@ def loss_function_stage1(model_output, groundtruth):
 
 def loss_function_stage2(model_output, groundtruth, CUDA, net_type, loss_weights):
 
-    if net_type is 'gru':
+    if net_type == 'gru':
         [gru_predicts, encoder_t_embeds, decoder_t_embeds, multi_attention] = model_output
         indexVectors = groundtruth
 
@@ -82,7 +115,7 @@ def loss_function_stage2(model_output, groundtruth, CUDA, net_type, loss_weights
 
         return [lstm_loss * weight_stage2_lstm_loss, embed_match_loss * weight_stage2_emb_loss, ATT * weight_stage2_att_loss]
 
-    elif net_type is 'nn':
+    elif net_type == 'nn':
         y_recon = model_output
         ingredients = groundtruth
 
@@ -127,13 +160,24 @@ def loss_function_stage3(model_output, groundtruth, CUDA, net_type, loss_weights
     
     #compute align losses
     [[x_align1, y_align1], [x_align2, y_align2]] = align_vectors
-    AE_kl = criterion_kl(F.log_softmax(x_align1, dim=1), F.softmax(y_align1.detach(), dim=1)) * weight_stage3_align_loss_kl
-    AE_l2 = criterion_recon(x_align2, y_align2.detach()) * weight_stage3_align_loss_l2
+
+    # m = (x_align1+y_align1)/2
+    # JSLoss = criterion_kl(F.log_softmax(x_align1,dim=1),F.log_softmax(m,dim=1)) + criterion_kl(F.log_softmax(y_align1,dim=1),F.log_softmax(m,dim=1))
+    # AE_kl = JSLoss*weight_stage3_align_loss_kl
+    print(x_align1)
+    print(y_align1)
+    sinkhorn.cuda()
+    # dist, _, _ = sinkhorn(x_align1,y_align1)
+    # AE_kl = dist.item()*weight_stage3_align_loss_kl
+    AE_kl = criterion_cos(x_align1,y_align1)*weight_stage3_align_loss_kl
+    # AE_kl = criterion_JS(x_align1,y_align1)*weight_stage3_align_loss_kl
+    # AE_kl = criterion_kl(F.log_softmax(x_align1, dim=1), F.softmax(y_align1.detach(), dim=1)) * weight_stage3_align_loss_kl
+    AE_l2 = criterion_recon(x_align2, y_align2) * weight_stage3_align_loss_l2 # made some change
 
     #compute recon losses
     [x_recon, y_recon] = recon_vectors
     RE_V = loss_function_stage1(x_recon, imgs) * weight_stage3_recon_loss_v
-    if net_type is 'gru':
+    if net_type == 'gru':
         RE_T = loss_function_stage2(y_recon, indexVectors, CUDA, net_type,\
                                 [weight_stage2_lstm_loss, weight_stage2_emb_loss, weight_stage2_att_loss])
     else:
@@ -143,7 +187,7 @@ def loss_function_stage3(model_output, groundtruth, CUDA, net_type, loss_weights
     #compute cross domain ingredient prediction loss
     [[y_latent_recon, y_latent], x2y_ingre_recon] = cross_vectors
     RE_v2t_latent = criterion_recon(y_latent_recon, y_latent.detach()) * weight_stage3_v2t_latent
-    if net_type is 'gru':
+    if net_type == 'gru':
         RE_v2t_pred = getLSTMloss_v2t(x2y_ingre_recon, indexVectors, CUDA) * weight_stage3_v2t_lstm
     else:
         RE_v2t_pred = criterion_recon(x2y_ingre_recon, ingredients)

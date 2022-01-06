@@ -6,12 +6,19 @@ import io
 
 def compute_cls_precision(predicts, labels):
     sorted_predicts = predicts.detach().cpu().numpy().argsort()
+    
+    
     top1_labels = sorted_predicts[:, -1:][:, 0]
+    labels = labels.cpu().numpy()
     match = float(sum(top1_labels - labels + 1 == 0))
+    # print(labels)
+    # print(sorted_predicts)
+    # print(top1_labels)
 
     top5_labels = sorted_predicts[:, -5:]
+    # print(top5_labels)
     hit = 0
-    for i in range(0, labels.size(0)):
+    for i in range(0, labels.size):
         hit += (labels[i] - 1) in top5_labels[i, :]
 
     return match, hit
@@ -24,7 +31,7 @@ def compute_ingre_pred_precision_nn(predicts, labels, avg_word):
     top_n_inds = sorted_predicts[:, :avg_word]
 
     labels = labels.detach().cpu().numpy()
-
+    
     # compute top-n hits for each sample
     hit = np.zeros([len(labels), avg_word])
     for i in range(len(labels)):  # for each sample \in [0,batch_size]
@@ -63,7 +70,7 @@ def compute_ingre_pred_precision_gru(mode, x2y_ingre_recon, indexVectors, labels
     num_word_per_location = np.zeros(seq_len) # to facilitate avg precision considering seq lens
     batch_sum_precision = np.zeros(seq_len) # store the performance in seq-level precision of top-n positions
 
-    mode_flag = not (mode is 'train') # if in val or test mode
+    mode_flag = not (mode == 'train') # if in val or test mode
 
     if mode_flag:#include computation for seq-level recall and word-level precision
         #variables for seq-level recall
@@ -102,7 +109,8 @@ def compute_ingre_pred_precision_gru(mode, x2y_ingre_recon, indexVectors, labels
         # if not in train mode, record detailed val/test results
         if mode_flag:
             with io.open(result_path + 'img2tag.txt', 'a', encoding='utf-8') as file:
-                file.write('Class: {}\n'.format(class_names[labels[i]]))
+                # file.write('item_seq: {}\n'.format(item_seq))
+                file.write('Class: {}\n'.format(class_names[labels[i]-1]))
                 file.write('True Tags: ')
                 for p in range(0, item_seq_len):
                     if p == 0: line = '{},'
@@ -133,6 +141,7 @@ def compute_ingre_pred_precision_gru(mode, x2y_ingre_recon, indexVectors, labels
 
                 # record the predict details
                 with io.open(result_path + 'img2tag.txt', 'a', encoding='utf-8') as file:
+                    # file.write('sorted_predicts: {}\n'.format(sorted_predicts))
                     if j == 0: line = '{}:{},'
                     elif j == item_seq_len - 1: line = ' {}:{}'
                     else: line = ' {}:{},'
@@ -173,15 +182,15 @@ def compute_ingre_pred_precision_gru(mode, x2y_ingre_recon, indexVectors, labels
 
 
 def compute_ingre_prediction_performance(mode, x2y_ingre_recon, indexVectors, ingredients, ingre_net_type, avg_word, labels, class_names, ingre_word_names, result_path):
-    if mode is 'train':
-        if ingre_net_type is 'gru':
+    if mode == 'train':
+        if ingre_net_type == 'gru':
             [avg_precision] = compute_ingre_pred_precision_gru(mode, x2y_ingre_recon, indexVectors, None, None, None, None)
         else:
             avg_precision, _ = compute_ingre_pred_precision_nn(x2y_ingre_recon, ingredients, avg_word)
         return avg_precision[0]
 
     else: #if test & val
-        if ingre_net_type is 'gru':# packed performance: [avg_precision, avg_recall, avg_precision_word]
+        if ingre_net_type == 'gru':# packed performance: [avg_precision, avg_recall, avg_precision_word]
             ingre_pred_performance = compute_ingre_pred_precision_gru(mode, x2y_ingre_recon, indexVectors, labels, class_names, ingre_word_names, result_path)
         else:# packed performance: [avg_precision, avg_recall]
             ingre_pred_performance = compute_ingre_pred_precision_nn(x2y_ingre_recon, ingredients, avg_word)
@@ -192,7 +201,9 @@ def compute_performance(mode, predicts, x2y_ingre_recon, labels, indexVectors, i
     [predicts_v, predicts_t] = predicts
 
     #compute performance of image and ingredient features
+    print("image pridict")
     top1_hit_V, top5_hit_V = compute_cls_precision(predicts_v, labels)
+    print("ingredient predict")
     top1_hit_T, top5_hit_T = compute_cls_precision(predicts_t, labels)
 
     #compute performance of ingredient prediction using image features

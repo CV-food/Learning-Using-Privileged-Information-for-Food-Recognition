@@ -50,8 +50,8 @@ ingre_net_type = opt.ingre_net
 num_class = opt.dataset_num_class
 num_word = opt.dataset_num_ingre
 avg_word = opt.dataset_avg_ingre
-if dataset_indicator is 'vireo':
-    if mode is 'test':
+if dataset_indicator == 'vireo':
+    if mode == 'test':
         max_seq = opt.dataset_max_seq_test
     else:
         max_seq = opt.dataset_max_seq_val
@@ -59,7 +59,7 @@ else:
     max_seq = opt.dataset_max_seq
 
 #Used in performance estimation for ingredient prediction
-if dataset_indicator is 'vireo':
+if dataset_indicator == 'vireo':
     with io.open(opt.food_class_name_path, encoding='utf-8') as file:
         class_names = file.read().split('\n')[:-1]
     class_names = np.array(class_names)
@@ -82,18 +82,22 @@ image_size = [256, 256]  # [64,64]
 
 
 #algorithm hyperparameter
-CUDA = 1  # 1 for True; 0 for False
+CUDA = 0  # 1 for True; 0 for False
+if torch.cuda.is_available():
+    CUDA = 1
+    torch.cuda.set_device(2)
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 SEED = 1
-BATCH_SIZE = 2
+BATCH_SIZE = 32
 LOG_INTERVAL = 1
 
-if img_net_type is 'vgg19bn':
+if img_net_type == 'vgg19bn':
     latent_len = 4096
 else:
     latent_len = 2048
 blk_len = int(latent_len * 3 / 8)
 
-lr_decay = 4
+lr_decay = 5
 EPOCHS = lr_decay * 3 + 1
 
 torch.manual_seed(SEED)
@@ -136,10 +140,10 @@ from compute_performance import compute_performance
 # --test & validation----------------------------------------------------------------
 
 def print_state(state):
-    print(state + '/n')
+    print(state + '\n')
     # records current progress for tracking purpose
     with io.open(result_path + 'model_batch_test_performance.txt', 'a', encoding='utf-8') as file:
-        file.write(state + '/n')
+        file.write(state + '\n\n')
 
 def compute_distribution_similarity(predicted_distribution, true_distribution):
     if len(predicted_distribution.shape) > 1:
@@ -291,7 +295,7 @@ def get_fused_decision(predicts_v, x2y_ingre_recon, avg_word, ingre_net_type, da
 
 
     #get ingre-inferred decisions
-    if ingre_net_type is 'gru': #x2y_ingre_recon: (seq, batch, number_of_ingredients)
+    if ingre_net_type == 'gru': #x2y_ingre_recon: (seq, batch, number_of_ingredients)
         # consider top-3 of the predictions for each seq entry
         Top_n_for_predicts = 3
 
@@ -367,6 +371,9 @@ def get_fused_decision(predicts_v, x2y_ingre_recon, avg_word, ingre_net_type, da
 
 def compute_cls_precision_for_fused_predicts(predicts, cls_indexes, labels):
     sorted_predicts = (-predicts).argsort()
+    #sorted_predicts = (-predicts).detach().cpu().numpy().argsort()
+    labels = labels.numpy()
+    
     top1_labels = sorted_predicts[:, 0].copy()
     batch_size = len(labels)
     for i in range(batch_size):
@@ -384,6 +391,8 @@ def compute_cls_precision_for_fused_predicts(predicts, cls_indexes, labels):
 
 def test_epoch(epoch):
 
+    model.eval()
+
     print('Testing starts..')
 
     #for model performance
@@ -395,7 +404,7 @@ def test_epoch(epoch):
     top1_accuracy_total_fuse = 0
     top5_accuracy_total_fuse = 0
 
-    if ingre_net_type is 'gru':
+    if ingre_net_type == 'gru':
         ingre_pred_precision_total = np.zeros(max_seq)
         ingre_pred_recall_total = np.zeros(max_seq)
         ingre_pred_word_total = np.zeros(5)
@@ -408,8 +417,8 @@ def test_epoch(epoch):
     for batch_idx, (data) in enumerate(test_loader):
 
         start_time = time.time()
-        if batch_idx == 2:
-            break
+        # if batch_idx == 2:
+        #     break
 
         # load data
         [imgs, indexVectors, ingredients, labels] = data
@@ -420,7 +429,7 @@ def test_epoch(epoch):
 
 
         # perform model inference
-        if ingre_net_type is 'gru':
+        if ingre_net_type == 'gru':
             predicts, _, _, cross_vectors = model(imgs, indexVectors)
         else:
             predicts, _, _, cross_vectors = model(imgs, ingredients)
@@ -458,7 +467,7 @@ def test_epoch(epoch):
         top5_accuracy_cur_fuse = top5_hit_fuse / float(len(labels))
 
         #ingredient prediction performance
-        if ingre_net_type is 'gru':
+        if ingre_net_type == 'gru':
             [avg_precision, avg_recall, avg_precision_word] = ingre_pred_performance
             ingre_pred_precision_total += avg_precision
             ingre_pred_recall_total += avg_recall
@@ -475,7 +484,6 @@ def test_epoch(epoch):
                 epoch, (batch_idx + 1) * len(ingredients), len(test_loader.dataset), 100. * (batch_idx + 1) / len(test_loader),
                 top1_accuracy_cur_V, top5_accuracy_cur_V,
                 top1_accuracy_cur_fuse, top5_accuracy_cur_fuse,
-                avg_precision[0],
                 top1_accuracy_cur_T, top5_accuracy_cur_T,
                 round((time.time() - start_time), 4) * LOG_INTERVAL,
                 round((time.time() - total_time), 4))
@@ -499,7 +507,7 @@ def test_epoch(epoch):
             ingre_pred_recall_total / len(test_loader),
         ))
 
-        if ingre_net_type is 'gru':
+        if ingre_net_type == 'gru':
             file.write(',\n ingre_w = {}\n\n'.format(ingre_pred_word_total / len(test_loader)))
         else:
             file.write('\n\n')
@@ -512,7 +520,7 @@ max_index = 0
 max_top1 = 0
 max_top5 = 0
 
-start_epoch = lr_decay + 1
+start_epoch = 2*lr_decay + 3
 
 for i in range(start_epoch, EPOCHS+1):
 
@@ -520,7 +528,8 @@ for i in range(start_epoch, EPOCHS+1):
     trained_model = torch.load(path, map_location='cpu')
     model.load_state_dict(trained_model)
 
-    top1, top5 = test_epoch(i)
+    with torch.no_grad():
+        top1, top5 = test_epoch(i)
 
     if top1 > max_top1:
         max_top1 = top1
